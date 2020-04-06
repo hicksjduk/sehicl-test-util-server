@@ -28,6 +28,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sendgrid.helpers.mail.Mail;
 
 import redis.embedded.RedisServer;
+import uk.org.sehicl.website.users.SessionData;
 import uk.org.sehicl.website.users.User;
 import uk.org.sehicl.website.users.User.Status;
 import uk.org.sehicl.website.users.UserDatastore;
@@ -55,17 +56,6 @@ public class Controller
         }
         String answer = sw.toString();
         return answer;
-    }
-
-    @RequestMapping(path = "/userStatus/{email}")
-    public String userCheck(HttpServletRequest req, HttpServletResponse resp,
-            @PathVariable String email) throws IOException
-    {
-        User user = userDatastore.getUserByEmail(email);
-        if (user != null)
-            return "" + user.getStatus();
-        resp.setStatus(HttpStatus.NOT_FOUND.value());
-        return "";
     }
 
     @RequestMapping(path = "/v3/mail/send", method = RequestMethod.POST, produces = "application/json")
@@ -139,6 +129,30 @@ public class Controller
             userDatastore.updateUser(user);
         }
         return String.format("%d", user.getId());
+    }
+
+    @RequestMapping(path = "/queryUser/{email}")
+    public String queryUser(HttpServletRequest req, HttpServletResponse resp,
+            @PathVariable String email) throws IOException
+    {
+        User user = userDatastore.getUserByEmail(email);
+        if (user == null)
+        {
+            resp.setStatus(HttpStatus.NOT_FOUND.value());
+            return "";
+        }
+        SessionData session = userDatastore.getSessionByUserId(user.getId());
+        StringWriter sw = new StringWriter();
+        try (JsonGenerator generator = new JsonFactoryBuilder().build().createGenerator(sw))
+        {
+            generator.writeStartObject();
+            generator.writeNumberField("id", user.getId());
+            generator.writeStringField("status", user.getStatus().toString());
+            if (session != null)
+                generator.writeNumberField("session", session.getId());
+            generator.writeEndObject();
+        }
+        return sw.toString();
     }
 
     @PostConstruct
